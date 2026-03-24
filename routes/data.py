@@ -8,6 +8,7 @@ data_bp = Blueprint("data", __name__)
 
 @data_bp.route("/data")
 def get_data():
+    # Return the most recent stored reading.
     latest = collection.find_one(sort=[("timestamp", -1)])
 
     if latest:
@@ -19,6 +20,7 @@ def get_data():
 
 @data_bp.route("/history")
 def history():
+    # Return the latest 20 readings for charts/tables.
     data = list(collection.find().sort("timestamp", -1).limit(20))
 
     for item in data:
