@@ -1,7 +1,7 @@
+import os
 from pymongo import MongoClient
 
-# 🔴 Энд өөрийн connection string хийнэ
-MONGO_URI = "mongodb+srv://greencampus:%40Pi07730@greencampus.k9oeyas.mongodb.net/"
+MONGO_URI = os.getenv("MONGO_URI")
 
 client = MongoClient(MONGO_URI)
 
