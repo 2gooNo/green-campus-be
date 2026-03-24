@@ -1,40 +1,59 @@
 from flask import Flask, jsonify, request
+from datetime import datetime
+from config import collection
+from ai import decide
 
 app = Flask(__name__)
 
-state = {
-    "moisture": 40,
-    "temperature": 25,
-    "status": "IDLE"
-}
-
-def decide(moisture, temperature):
-
-    print(f"Deciding with moisture: {moisture}, temperature: {temperature}")
-    if moisture < 30 and temperature > 20:
-        return "WATERING"
-    return "IDLE"
-
-# ESP32 энд data явуулна
+# 📤 ESP32 → data илгээх endpoint
 @app.route("/update", methods=["POST"])
 def update():
     data = request.json
 
-    state["moisture"] = data["moisture"]
-    state["temperature"] = data["temperature"]
+    moisture = data.get("moisture")
+    temperature = data.get("temperature")
 
-    # AI ажиллуулна
-    state["status"] = decide(
-        state["moisture"],
-        state["temperature"]
-    )
+    # AI decision
+    status = decide(moisture, temperature)
 
-    return jsonify({"message": "updated"})
+    # MongoDB-д хадгалах
+    document = {
+        "moisture": moisture,
+        "temperature": temperature,
+        "status": status,
+        "timestamp": datetime.utcnow()
+    }
 
-# Frontend эндээс авна
+    collection.insert_one(document)
+
+    return jsonify({
+        "message": "Data saved",
+        "status": status
+    })
+
+
+# 📥 Frontend → latest data авах
 @app.route("/data")
 def get_data():
-    return jsonify(state)
+    latest = collection.find_one(sort=[("timestamp", -1)])
+
+    if latest:
+        latest["_id"] = str(latest["_id"])
+        return jsonify(latest)
+
+    return jsonify({"error": "No data found"})
+
+
+# 📊 Graph-д зориулсан history
+@app.route("/history")
+def history():
+    data = list(collection.find().sort("timestamp", -1).limit(20))
+
+    for d in data:
+        d["_id"] = str(d["_id"])
+
+    return jsonify(data)
+
 
 if __name__ == "__main__":
     app.run(debug=True)
