@@ -4,8 +4,11 @@ from flask import Flask, jsonify, request
 from datetime import datetime
 from config import collection
 from ai import decide
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
+
 
 # 📤 ESP32 → data илгээх endpoint
 @app.route("/update", methods=["POST"])
