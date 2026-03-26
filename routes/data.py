@@ -11,6 +11,8 @@ def get_data():
     # Return the most recent stored reading.
     latest = collection.find_one(sort=[("timestamp", -1)])
 
+    print(f"Serving latest data: {latest}")
+
     if latest:
         latest["_id"] = str(latest["_id"])
         return jsonify(latest)
