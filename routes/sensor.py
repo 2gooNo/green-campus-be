@@ -10,6 +10,17 @@ from config import collection
 sensor_bp = Blueprint("sensor", __name__)
 
 
+def _trend_per_min(previous_moisture, previous_timestamp, current_moisture, now_utc):
+    if previous_moisture is None or previous_timestamp is None:
+        return None
+
+    elapsed_min = (now_utc - previous_timestamp).total_seconds() / 60.0
+    if elapsed_min <= 0:
+        return None
+
+    return (current_moisture - previous_moisture) / elapsed_min
+
+
 @sensor_bp.route("/update", methods=["POST"])
 def update():
     # Sensor payload from ESP32.
@@ -23,6 +34,8 @@ def update():
     if moisture is None or temperature is None:
         return jsonify({"error": "Invalid data"}), 400
 
+    now_utc = datetime.utcnow()
+
     # Auto mode is persisted in DB, not in-memory.
     auto_mode = get_auto_mode()
 
@@ -35,7 +48,19 @@ def update():
     if is_manual:
         status = latest.get("status", "IDLE")  # Keep the manual status.
     elif auto_mode:
-        status = decide(moisture, temperature)
+        previous_status = latest.get("status", "IDLE") if latest else "IDLE"
+        moisture_trend = _trend_per_min(
+            latest.get("moisture") if latest else None,
+            latest.get("timestamp") if latest else None,
+            moisture,
+            now_utc,
+        )
+        status = decide(
+            moisture,
+            temperature,
+            previous_status=previous_status,
+            trend_per_min=moisture_trend,
+        )
 
     document = {
         # Store incoming reading with computed actuator status.
@@ -44,7 +69,7 @@ def update():
         "status": status,
         "auto_mode": auto_mode,
         "manual": is_manual,  # Preserve manual flag.
-        "timestamp": datetime.utcnow(),
+        "timestamp": now_utc,
     }
 
     collection.insert_one(document)
